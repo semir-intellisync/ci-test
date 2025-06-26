@@ -1,0 +1,80 @@
+name: Release with Wiki Check
+
+on:
+  push:
+    tags:
+      - 'v*' # Run when a tag like v1.0 is pushed
+
+jobs:
+  # Job 1: Build the code (Runs automatically)
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: 'semir-intellisync'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build Project
+        run: npm run build
+      
+      # Upload the build so the next job can use it
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-files
+          path: ./dist
+
+  # Job 2: The "Pause and Wait" Job
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    
+    # 🛑 THIS IS THE MAGIC LINE 🛑
+    # This tells GitHub to pause and look at the settings for 'manual-wiki-check'
+    environment: manual-wiki-check
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@YOUR_GITHUB_USERNAME'
+      
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-files
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Extract version from tag
+        id: tag_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+      - name: Update package version
+        run: |
+          npm version ${{ steps.tag_version.outputs.VERSION }} --no-git-tag-version
+          cat package.json
+      
+      - name: Publish to GitHub Packages
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Publish Release
+        run: |
+          echo "Package published to GitHub Packages!"
+          echo "Version: ${{ steps.tag_version.outputs.VERSION }}"
+          echo "If this step is running, the user has confirmed the Wiki is updated."
