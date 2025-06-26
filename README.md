@@ -10,19 +10,19 @@ To install this package from GitHub Packages, you'll need to configure npm to us
 
 1. Create a `.npmrc` file in your project root:
 ```
-@YOUR_GITHUB_USERNAME:registry=https://npm.pkg.github.com
+semir-intellisync:registry=https://npm.pkg.github.com
 //npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN
 ```
 
 2. Install the package:
 ```bash
-npm install @YOUR_GITHUB_USERNAME/ci-test
+npm install semir-intellisync/ci-test
 ```
 
 ## Usage
 
 ```typescript
-import { greet, add } from '@YOUR_GITHUB_USERNAME/ci-test';
+import { greet, add } from 'semir-intellisync/ci-test';
 
 // Greet someone
 console.log(greet({ name: 'Alice' })); // "Hi, Alice!"
@@ -69,7 +69,7 @@ The workflow will:
    - Update the repository URL
 
 2. In `.github/workflows/review.yaml`:
-   - Replace `@YOUR_GITHUB_USERNAME` with your actual GitHub username/org
+   - Replace `semir-intellisync` with your actual GitHub username/org
 
 ## License
 

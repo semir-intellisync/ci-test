@@ -1,5 +1,5 @@
 {
-  "name": "@YOUR_GITHUB_USERNAME/ci-test",
+  "name": "semir-intellisync/ci-test",
   "version": "1.0.0",
   "description": "A sample package for CI/CD testing with GitHub Packages",
   "main": "dist/index.js",
