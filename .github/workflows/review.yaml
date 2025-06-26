@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: '20'
           registry-url: 'https://npm.pkg.github.com'
-          scope: 'semir-intellisync'
+          scope: '@semir-intellisync'
       
       - name: Install dependencies
         run: npm install
@@ -52,7 +52,7 @@ jobs:
         with:
           node-version: '20'
           registry-url: 'https://npm.pkg.github.com'
-          scope: 'semir-intellisync'
+          scope: '@semir-intellisync'
       
       - name: Download Artifact
         uses: actions/download-artifact@v4
