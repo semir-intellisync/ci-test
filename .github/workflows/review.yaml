@@ -1,4 +1,4 @@
-name: Release with Wiki Check
+name: Release with Auto-Wiki
 
 on:
   push:
@@ -9,15 +9,54 @@ on:
   workflow_dispatch: # Allow manual triggering
 
 permissions:
-  contents: read
+  contents: write # Required to push to Wiki
   packages: write
 
 jobs:
-  # Job 1: Build the code (Runs automatically)
+  # Job 1: Build the code and create Wiki draft (Runs automatically)
   build:
     runs-on: ubuntu-latest
+    outputs:
+      # Export the version so the Release job can use it later
+      version: ${{ steps.version.outputs.VERSION }}
+      version_type: ${{ steps.version.outputs.VERSION_TYPE }}
     steps:
       - uses: actions/checkout@v4
+      
+      # 1️⃣ Calculate Version EARLY (in Build job)
+      - name: Get current package version
+        id: current_version
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Generate version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # Extract version from tag (e.g., v1.2.3 -> 1.2.3)
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+            echo "VERSION_TYPE=tag" >> $GITHUB_OUTPUT
+          else
+            # Auto-generate version for push to main or workflow_dispatch
+            # Format: MAJOR.MINOR.PATCH-YYYYMMDD-HHMMSS-SHORTSHA
+            DATE=$(date +%Y%m%d-%H%M%S)
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            BASE_VERSION="${{ steps.current_version.outputs.CURRENT_VERSION }}"
+            
+            # Extract major.minor.patch from base version
+            if [[ "$BASE_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+              BASE="${BASH_REMATCH[1]}"
+            else
+              BASE="1.0.0"
+            fi
+            
+            VERSION="${BASE}-${DATE}-${SHORT_SHA}"
+            echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+            echo "VERSION_TYPE=auto" >> $GITHUB_OUTPUT
+          fi
+          echo "Generated version: $VERSION"
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -31,6 +70,77 @@ jobs:
       
       - name: Build Project
         run: npm run build
+      
+      # 2️⃣ CREATE THE WIKI PAGE
+      - name: Create Wiki Draft
+        env:
+          # The trick: The Wiki repo is just your repo URL + .wiki.git
+          WIKI_REPO: https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git
+          VERSION: ${{ steps.version.outputs.VERSION }}
+          USER: ${{ github.actor }}
+        run: |
+          echo "🔹 Cloning Wiki Repo..."
+          # Clone the wiki into a temporary folder
+          git clone $WIKI_REPO tmp_wiki || {
+            echo "⚠️ Wiki repo doesn't exist yet. Creating initial wiki..."
+            mkdir -p tmp_wiki
+            cd tmp_wiki
+            git init
+            git remote add origin $WIKI_REPO
+            cd ..
+          }
+          
+          cd tmp_wiki
+          
+          # Define the filename (e.g., Release-1.0.0.md)
+          FILENAME="Release-${VERSION}.md"
+          
+          # Check if it exists (to avoid overwriting if you re-run)
+          if [ -f "$FILENAME" ]; then
+            echo "Page already exists, skipping..."
+            exit 0
+          fi
+          
+          echo "🔹 Creating Template..."
+          # Write the Markdown content
+          cat > "$FILENAME" << EOF
+          # Release Notes: $VERSION
+          
+          **Status:** 🚧 DRAFT (Waiting for Release)
+          **Owner:** @$USER
+          **Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Commit:** ${{ github.sha }}
+          
+          ## 📝 Changes
+          - (Add your notes here)
+          - (Add your notes here)
+          
+          ## 📦 Artifacts
+          - Package: \`@semir-intellisync/ci-test@${VERSION}\`
+          - Registry: \`npm.pkg.github.com\`
+          
+          ## ✅ Checklist
+          - [ ] Release notes reviewed
+          - [ ] Changes documented
+          - [ ] Ready for production
+          EOF
+          
+          # Git configurations for the bot
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          
+          # Push to Wiki
+          git add "$FILENAME"
+          git commit -m "Auto-generated draft for $VERSION" || {
+            echo "No changes to commit"
+            exit 0
+          }
+          git push origin master || git push origin main || {
+            echo "⚠️ Failed to push to wiki. This might be expected if wiki doesn't exist yet."
+            exit 0
+          }
+          
+          echo "✅ Wiki Page Created: $FILENAME"
       
       # Upload the build so the next job can use it
       - name: Upload Artifact
@@ -66,43 +176,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
-      - name: Get current package version
-        id: current_version
+      # Now we just print the link for convenience
+      - name: Check Wiki Link
         run: |
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
-          echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-      
-      - name: Generate version
-        id: version
-        run: |
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            # Extract version from tag (e.g., v1.2.3 -> 1.2.3)
-            VERSION="${GITHUB_REF#refs/tags/v}"
-            echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-            echo "VERSION_TYPE=tag" >> $GITHUB_OUTPUT
-          else
-            # Auto-generate version for push to main or workflow_dispatch
-            # Format: MAJOR.MINOR.PATCH-YYYYMMDD-HHMMSS-SHORTSHA
-            DATE=$(date +%Y%m%d-%H%M%S)
-            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-            BASE_VERSION="${{ steps.current_version.outputs.CURRENT_VERSION }}"
-            
-            # Extract major.minor.patch from base version
-            if [[ "$BASE_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+) ]]; then
-              BASE="${BASH_REMATCH[1]}"
-            else
-              BASE="1.0.0"
-            fi
-            
-            VERSION="${BASE}-${DATE}-${SHORT_SHA}"
-            echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-            echo "VERSION_TYPE=auto" >> $GITHUB_OUTPUT
-          fi
-          echo "Generated version: $VERSION"
+          VERSION="${{ needs.build.outputs.version }}"
+          echo "🔍 Check the Wiki Page here:"
+          echo "https://github.com/${{ github.repository }}/wiki/Release-${VERSION}"
+          echo ""
+          echo "📝 Please edit the Wiki page and fill in the release notes before approving."
       
       - name: Update package version
         run: |
-          npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version
+          npm version ${{ needs.build.outputs.version }} --no-git-tag-version
           cat package.json
       
       - name: Publish to GitHub Packages
@@ -112,7 +197,8 @@ jobs:
       
       - name: Publish Release
         run: |
-          echo "Package published to GitHub Packages!"
-          echo "Version: ${{ steps.version.outputs.VERSION }}"
-          echo "Version Type: ${{ steps.version.outputs.VERSION_TYPE }}"
+          echo "✅ Package published to GitHub Packages!"
+          echo "Version: ${{ needs.build.outputs.version }}"
+          echo "Version Type: ${{ needs.build.outputs.version_type }}"
+          echo "Wiki Page: https://github.com/${{ github.repository }}/wiki/Release-${{ needs.build.outputs.version }}"
           echo "If this step is running, the user has confirmed the Wiki is updated."
