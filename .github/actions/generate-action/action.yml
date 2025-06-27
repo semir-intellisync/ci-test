@@ -1,0 +1,50 @@
+name: Generate Version
+description: Generate version based on date and build number and suffix it based on branch, event or manual input.
+
+inputs:
+  suffix:
+    description: Explicit version suffix. Will be separated by a hyphen.
+    required: false 
+outputs:
+  version:
+    description: Generated version string.
+    value: ${{ steps.generate.outputs.version }}
+  pre-release:
+    description: Whether this is a pre-release version, based on the event or source that triggered the workflow.
+    value: ${{ steps.generate.outputs.pre-release }}
+
+runs:
+  using: composite
+  steps:
+    - name: Generate version
+      id: generate
+      shell: bash
+      run: |
+        # Generate version based on today's date: YYYY.MM.DDXX format, where XX is the workflow's build number.
+        # Note: Using %-d to avoid leading zeros in day (Octopus normalizes versions)
+        today=$(date +%Y.%-m.%-d)
+        build_number="${{ github.run_number }}"
+        
+        # Base version with today's date
+        version="${today}${build_number}"
+        pre_release="false"
+        
+        # Add suffix based on conditions
+        echo "Event: ${{ github.event_name }} to '${{ github.ref_name }}'"
+        if [ -n "${{ inputs.suffix }}" ]; then
+          # Explicit version suffix.
+          version="${version}-${{ inputs.suffix }}"
+          pre_release="true"
+        elif [ "${{ github.event_name }}" = "pull_request" ]; then
+          # Triggered by a PR: automated CI build.
+          version="${version}-ci"
+          pre_release="true"
+        elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref_name }}" = "main" ]; then
+          # Triggered by a push to main branch: release candidate build.
+          version="${version}-rc"
+          pre_release="true"
+        fi
+        
+        echo "version=$version" >> $GITHUB_OUTPUT
+        echo "pre-release=$pre_release" >> $GITHUB_OUTPUT
+        echo "Generated version: $version (pre-release: $pre_release)"

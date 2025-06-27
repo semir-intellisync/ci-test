@@ -19,39 +19,16 @@ jobs:
   build:
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.version.outputs.VERSION }}
-      version_type: ${{ steps.version.outputs.VERSION_TYPE }}
+      version: ${{ steps.version.outputs.version }}
+      pre-release: ${{ steps.version.outputs.pre-release }}
     steps:
       - uses: actions/checkout@v4
       
-      - name: Get current package version
-        id: current_version
-        working-directory: packages/assetstack
-        run: |
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
-          echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-      
       - name: Generate version
         id: version
-        run: |
-          if [[ "${{ github.ref }}" == refs/tags/assetstack-v* ]]; then
-            VERSION="${GITHUB_REF#refs/tags/assetstack-v}"
-            echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-            echo "VERSION_TYPE=tag" >> $GITHUB_OUTPUT
-          else
-            DATE=$(date +%Y%m%d-%H%M%S)
-            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-            BASE_VERSION="${{ steps.current_version.outputs.CURRENT_VERSION }}"
-            if [[ "$BASE_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+) ]]; then
-              BASE="${BASH_REMATCH[1]}"
-            else
-              BASE="1.0.0"
-            fi
-            VERSION="${BASE}-${DATE}-${SHORT_SHA}"
-            echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-            echo "VERSION_TYPE=auto" >> $GITHUB_OUTPUT
-          fi
-          echo "Generated version: $VERSION"
+        uses: ./.github/actions/generate-action
+        with:
+          suffix: ${{ github.event.input.suffix }}
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
