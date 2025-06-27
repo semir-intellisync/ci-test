@@ -1,0 +1,151 @@
+name: Release Dummy (Authentication Server)
+
+on:
+  push:
+    branches:
+      - main # Run on push to main
+    tags:
+      - 'dummy-v*' # Run when a tag like dummy-v1.0 is pushed
+    paths:
+      - 'packages/dummy/**'
+      - '.github/workflows/dummy.yaml'
+  workflow_dispatch: # Allow manual triggering
+
+permissions:
+  contents: write # Required to push to Wiki
+  packages: write
+
+jobs:
+  # ---------------------------------------------------------
+  # JOB 1: BUILD & VERSIONING
+  # ---------------------------------------------------------
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.VERSION }}
+      version_type: ${{ steps.version.outputs.VERSION_TYPE }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      # --- VERSIONING LOGIC ---
+      - name: Get current package version
+        id: current_version
+        working-directory: packages/dummy
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Generate version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/dummy-v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/dummy-v}"
+            echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+            echo "VERSION_TYPE=tag" >> $GITHUB_OUTPUT
+          else
+            DATE=$(date +%Y%m%d-%H%M%S)
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            BASE_VERSION="${{ steps.current_version.outputs.CURRENT_VERSION }}"
+            if [[ "$BASE_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+              BASE="${BASH_REMATCH[1]}"
+            else
+              BASE="1.0.0"
+            fi
+            VERSION="${BASE}-${DATE}-${SHORT_SHA}"
+            echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+            echo "VERSION_TYPE=auto" >> $GITHUB_OUTPUT
+          fi
+          echo "Generated version: $VERSION"
+      
+      # --- BUILD LOGIC ---
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@semir-intellisync'
+      - name: Install dependencies
+        working-directory: packages/dummy
+        run: npm install
+      - name: Build package
+        working-directory: packages/dummy
+        run: npm run build
+      
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dummy-build-files
+          path: packages/dummy/dist
+
+  # ---------------------------------------------------------
+  # JOB 2: CREATE WIKI NOTE (Prerelease Step)
+  # ---------------------------------------------------------
+  create-release-note:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Check out the code so the runner can find the action folder
+      - uses: actions/checkout@v4
+
+      # 2. Run the local action
+      - name: Generate Wiki Page
+        uses: ./.github/actions/create-wiki-note
+        with:
+          service_name: dummy
+          version: ${{ needs.build.outputs.version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          actor: ${{ github.actor }}
+
+  # ---------------------------------------------------------
+  # JOB 3: RELEASE GATE & PUBLISH
+  # ---------------------------------------------------------
+  release:
+    # We need both: 'build' (for version) and 'create-release-note' (to ensure wiki exists)
+    needs: [build, create-release-note]
+    runs-on: ubuntu-latest
+    environment: manual-wiki-check
+    
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@semir-intellisync'
+      
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dummy-build-files
+          path: packages/dummy/dist
+      
+      - name: Install dependencies
+        working-directory: packages/dummy
+        run: npm ci
+      
+      - name: Check Wiki Link
+        run: |
+          VERSION="${{ needs.build.outputs.version }}"
+          SERVICE_NAME="dummy"
+          echo "🔍 Check the Wiki Page here:"
+          echo "https://github.com/${{ github.repository }}/wiki/${SERVICE_NAME}/${VERSION}"
+          echo "📝 Please edit the Wiki page before approving."
+
+      - name: Update package version
+        working-directory: packages/dummy
+        run: |
+          npm version ${{ needs.build.outputs.version }} --no-git-tag-version
+          
+      - name: Publish to GitHub Packages
+        working-directory: packages/dummy
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Publish Release
+        run: |
+          SERVICE_NAME="dummy"
+          echo "✅ Package published!"
+          echo "Wiki Page: https://github.com/${{ github.repository }}/wiki/${SERVICE_NAME}/${{ needs.build.outputs.version }}"
+
