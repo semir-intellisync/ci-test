@@ -76,56 +76,17 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Create Wiki Page in Folder
-        env:
-          WIKI_REPO: https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git
-          VERSION: ${{ needs.build.outputs.version }}
-          USER: ${{ github.actor }}
-        run: |
-          echo "🔹 Cloning Wiki Repo..."
-          if ! git clone $WIKI_REPO tmp_wiki; then
-             echo "::error::❌ Wiki Repo not found. Please create the first page manually in GitHub UI."
-             exit 1
-          fi
-          
-          cd tmp_wiki
-          
-          # 👇 NEW: Create a folder for the releases
-          FOLDER="Releases"
-          mkdir -p "$FOLDER"
-          
-          # Define file path: Releases/Release-1.0.0.md
-          FILENAME="$FOLDER/Release-${VERSION}.md"
-          
-          if [ -f "$FILENAME" ]; then
-            echo "⚠️ Page $FILENAME already exists. Skipping."
-            exit 0
-          fi
+      # 1. Check out the code so the runner can find the action folder
+      - uses: actions/checkout@v4
 
-          echo "🔹 Creating Template inside folder..."
-
-          cat > "$FILENAME" << EOF
-          # Release Notes: $VERSION
-          
-          **Status:** 🚧 DRAFT (Waiting for Release)
-          **Owner:** @$USER
-          **Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          
-          ## 📝 Changes
-          - (Add your notes here)
-          
-          ## 📦 Artifacts
-          - Package: \`@semir-intellisync/ci-test@${VERSION}\`
-          EOF
-          
-          git config user.name "GitHub Actions Bot"
-          git config user.email "actions@github.com"
-          
-          git add "$FILENAME"
-          git commit -m "Draft Release Notes for $VERSION"
-          git push origin master
-          
-          echo "✅ Wiki Page Created: $FILENAME"
+      # 2. Run the local action
+      - name: Generate Wiki Page
+        uses: ./.github/actions/create-wiki-note
+        with:
+          service_name: ${{ github.event.repository.name }}
+          version: ${{ needs.build.outputs.version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          actor: ${{ github.actor }}
 
   # ---------------------------------------------------------
   # JOB 3: RELEASE GATE & PUBLISH
@@ -156,8 +117,9 @@ jobs:
       - name: Check Wiki Link
         run: |
           VERSION="${{ needs.build.outputs.version }}"
+          SERVICE_NAME="${{ github.event.repository.name }}"
           echo "🔍 Check the Wiki Page here:"
-          echo "https://github.com/${{ github.repository }}/wiki/Releases/Release-${VERSION}"
+          echo "https://github.com/${{ github.repository }}/wiki/${SERVICE_NAME}/${VERSION}"
           echo "📝 Please edit the Wiki page before approving."
 
       - name: Update package version
@@ -171,5 +133,6 @@ jobs:
       
       - name: Publish Release
         run: |
+          SERVICE_NAME="${{ github.event.repository.name }}"
           echo "✅ Package published!"
-          echo "Wiki Page: https://github.com/${{ github.repository }}/wiki/Releases/Release-${{ needs.build.outputs.version }}"
+          echo "Wiki Page: https://github.com/${{ github.repository }}/wiki/${SERVICE_NAME}/${{ needs.build.outputs.version }}"

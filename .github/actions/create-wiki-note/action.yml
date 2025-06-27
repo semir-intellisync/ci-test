@@ -1,0 +1,84 @@
+name: 'Create Wiki Release Note'
+
+description: 'Creates a draft release note in the Wiki under a service folder'
+
+inputs:
+  service_name:
+    description: 'The name of the service (used for folder name)'
+    required: true
+  version:
+    description: 'The version number'
+    required: true
+  token:
+    description: 'GITHUB_TOKEN'
+    required: true
+  actor:
+    description: 'The GitHub user'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Create Wiki Page
+      shell: bash
+      env:
+        # Construct the Wiki URL securely
+        WIKI_REPO: https://${{ inputs.actor }}:${{ inputs.token }}@github.com/${{ github.repository }}.wiki.git
+        VERSION: ${{ inputs.version }}
+        SERVICE_NAME: ${{ inputs.service_name }}
+        USER: ${{ inputs.actor }}
+      run: |
+        echo "🔹 Cloning Wiki Repo..."
+        
+        # Use a random temp folder to prevent collisions
+        TEMP_DIR="tmp_wiki_${RANDOM}"
+        
+        # Try to clone. Fail if Wiki doesn't exist.
+        if ! git clone $WIKI_REPO $TEMP_DIR; then
+           echo "::error::❌ Wiki Repo not found. Please create the first page manually in GitHub UI."
+           exit 1
+        fi
+        
+        cd $TEMP_DIR
+        
+        # 1. Create Service Folder
+        mkdir -p "$SERVICE_NAME"
+        
+        # 2. Define File Path
+        FILENAME="$SERVICE_NAME/${VERSION}.md"
+        
+        if [ -f "$FILENAME" ]; then
+          echo "⚠️ Page $FILENAME already exists. Skipping."
+          exit 0
+        fi
+
+        echo "🔹 Creating Release Note..."
+
+        cat > "$FILENAME" << EOF
+        # $SERVICE_NAME: $VERSION
+        
+        **Status:** 🚧 DRAFT (Waiting for Release)
+        **Owner:** @$USER
+        **Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        
+        ## 📝 Changes
+        - (Add your notes here)
+        
+        ## 📦 Artifacts
+        - Package: \`@semir-intellisync/$SERVICE_NAME@${VERSION}\`
+        EOF
+        
+        # 3. Commit and Push
+        git config user.name "GitHub Actions Bot"
+        git config user.email "actions@github.com"
+        
+        git add "$FILENAME"
+        git commit -m "Draft Notes: $SERVICE_NAME $VERSION"
+        git push origin master
+        
+        echo "✅ Wiki Page Created: $FILENAME"
+        
+        # Cleanup
+        cd ..
+        rm -rf $TEMP_DIR
+
