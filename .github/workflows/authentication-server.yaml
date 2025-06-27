@@ -3,22 +3,19 @@ name: Release Authentication Server
 on:
   push:
     branches:
-      - main # Run on push to main
+      - main
     tags:
-      - 'authentication-server-v*' # Run when a tag like authentication-server-v1.0 is pushed
+      - 'authentication-server-v*'
     paths:
       - 'packages/authentication-server/**'
       - '.github/workflows/authentication-server.yaml'
-  workflow_dispatch: # Allow manual triggering
+  workflow_dispatch:
 
 permissions:
-  contents: write # Required to push to Wiki
+  contents: write
   packages: write
 
 jobs:
-  # ---------------------------------------------------------
-  # JOB 1: BUILD & VERSIONING
-  # ---------------------------------------------------------
   build:
     runs-on: ubuntu-latest
     outputs:
@@ -27,7 +24,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      # --- VERSIONING LOGIC ---
       - name: Get current package version
         id: current_version
         working-directory: packages/authentication-server
@@ -57,7 +53,6 @@ jobs:
           fi
           echo "Generated version: $VERSION"
       
-      # --- BUILD LOGIC ---
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -77,17 +72,12 @@ jobs:
           name: authentication-server-build-files
           path: packages/authentication-server/dist
 
-  # ---------------------------------------------------------
-  # JOB 2: CREATE WIKI NOTE (Prerelease Step)
-  # ---------------------------------------------------------
   create-release-note:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      # 1. Check out the code so the runner can find the action folder
       - uses: actions/checkout@v4
 
-      # 2. Run the local action
       - name: Generate Wiki Page
         uses: ./.github/actions/create-wiki-note
         with:
@@ -96,11 +86,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           actor: ${{ github.actor }}
 
-  # ---------------------------------------------------------
-  # JOB 3: RELEASE GATE & PUBLISH
-  # ---------------------------------------------------------
   release:
-    # We need both: 'build' (for version) and 'create-release-note' (to ensure wiki exists)
     needs: [build, create-release-note]
     runs-on: ubuntu-latest
     environment: manual-wiki-check

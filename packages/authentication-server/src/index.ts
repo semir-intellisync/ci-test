@@ -1,8 +1,3 @@
-/**
- * Authentication Server
- * Main entry point for the dummy authentication server package
- */
-
 export interface AuthOptions {
   username?: string;
   password?: string;
@@ -15,11 +10,6 @@ export interface AuthResult {
   message?: string;
 }
 
-/**
- * Authenticates a user with username and password
- * @param options - Authentication options
- * @returns Authentication result with token
- */
 export function authenticate(options: AuthOptions = {}): AuthResult {
   const { username, password } = options;
   
@@ -30,7 +20,6 @@ export function authenticate(options: AuthOptions = {}): AuthResult {
     };
   }
   
-  // Mock authentication - in real implementation, this would validate against a database
   const mockToken = `token_${username}_${Date.now()}`;
   
   return {
@@ -40,11 +29,6 @@ export function authenticate(options: AuthOptions = {}): AuthResult {
   };
 }
 
-/**
- * Validates an authentication token
- * @param token - The token to validate
- * @returns Whether the token is valid
- */
 export function validateToken(token: string): boolean {
   if (!token || !token.startsWith('token_')) {
     return false;
@@ -52,9 +36,6 @@ export function validateToken(token: string): boolean {
   return true;
 }
 
-/**
- * Default export
- */
 export default {
   authenticate,
   validateToken,
