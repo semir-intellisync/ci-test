@@ -1,14 +1,14 @@
-name: Release Dummy (Authentication Server)
+name: Release Authentication Server
 
 on:
   push:
     branches:
       - main # Run on push to main
     tags:
-      - 'dummy-v*' # Run when a tag like dummy-v1.0 is pushed
+      - 'authentication-server-v*' # Run when a tag like authentication-server-v1.0 is pushed
     paths:
-      - 'packages/dummy/**'
-      - '.github/workflows/dummy.yaml'
+      - 'packages/authentication-server/**'
+      - '.github/workflows/authentication-server.yaml'
   workflow_dispatch: # Allow manual triggering
 
 permissions:
@@ -30,7 +30,7 @@ jobs:
       # --- VERSIONING LOGIC ---
       - name: Get current package version
         id: current_version
-        working-directory: packages/dummy
+        working-directory: packages/authentication-server
         run: |
           CURRENT_VERSION=$(node -p "require('./package.json').version")
           echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_OUTPUT
@@ -38,8 +38,8 @@ jobs:
       - name: Generate version
         id: version
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/dummy-v* ]]; then
-            VERSION="${GITHUB_REF#refs/tags/dummy-v}"
+          if [[ "${{ github.ref }}" == refs/tags/authentication-server-v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/authentication-server-v}"
             echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
             echo "VERSION_TYPE=tag" >> $GITHUB_OUTPUT
           else
@@ -65,17 +65,17 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
           scope: '@semir-intellisync'
       - name: Install dependencies
-        working-directory: packages/dummy
+        working-directory: packages/authentication-server
         run: npm install
       - name: Build package
-        working-directory: packages/dummy
+        working-directory: packages/authentication-server
         run: npm run build
       
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dummy-build-files
-          path: packages/dummy/dist
+          name: authentication-server-build-files
+          path: packages/authentication-server/dist
 
   # ---------------------------------------------------------
   # JOB 2: CREATE WIKI NOTE (Prerelease Step)
@@ -91,7 +91,7 @@ jobs:
       - name: Generate Wiki Page
         uses: ./.github/actions/create-wiki-note
         with:
-          service_name: dummy
+          service_name: authentication-server
           version: ${{ needs.build.outputs.version }}
           token: ${{ secrets.GITHUB_TOKEN }}
           actor: ${{ github.actor }}
@@ -117,35 +117,35 @@ jobs:
       - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
-          name: dummy-build-files
-          path: packages/dummy/dist
+          name: authentication-server-build-files
+          path: packages/authentication-server/dist
       
       - name: Install dependencies
-        working-directory: packages/dummy
+        working-directory: packages/authentication-server
         run: npm ci
       
       - name: Check Wiki Link
         run: |
           VERSION="${{ needs.build.outputs.version }}"
-          SERVICE_NAME="dummy"
+          SERVICE_NAME="authentication-server"
           echo "🔍 Check the Wiki Page here:"
           echo "https://github.com/${{ github.repository }}/wiki/${SERVICE_NAME}/${VERSION}"
           echo "📝 Please edit the Wiki page before approving."
 
       - name: Update package version
-        working-directory: packages/dummy
+        working-directory: packages/authentication-server
         run: |
           npm version ${{ needs.build.outputs.version }} --no-git-tag-version
           
       - name: Publish to GitHub Packages
-        working-directory: packages/dummy
+        working-directory: packages/authentication-server
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Publish Release
         run: |
-          SERVICE_NAME="dummy"
+          SERVICE_NAME="authentication-server"
           echo "✅ Package published!"
           echo "Wiki Page: https://github.com/${{ github.repository }}/wiki/${SERVICE_NAME}/${{ needs.build.outputs.version }}"
 

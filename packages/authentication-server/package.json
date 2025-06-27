@@ -1,5 +1,5 @@
 {
-  "name": "@semir-intellisync/dummy",
+  "name": "@semir-intellisync/authentication-server",
   "version": "1.0.0",
   "description": "Authentication server package",
   "main": "dist/index.js",

@@ -35,6 +35,10 @@ runs:
         fi
         cd $TEMP_DIR
         
+        # Configure git
+        git config user.name "GitHub Actions Bot"
+        git config user.email "actions@github.com"
+        
         # --- 2. CREATE SERVICE FOLDER & NOTE ---
         mkdir -p "$SERVICE_NAME"
         FILENAME="$SERVICE_NAME/${VERSION}.md"
@@ -102,16 +106,23 @@ runs:
             echo "</details>" >> _Sidebar.md
         done
         
-        # --- 4. PUSH CHANGES ---
-        git config user.name "GitHub Actions Bot"
-        git config user.email "actions@github.com"
+        # --- 4. PULL LATEST CHANGES & PUSH ---
+        # Pull latest changes before committing to avoid conflicts
+        git fetch origin master
+        git pull origin master --no-rebase || git pull origin master
+        
         git add .
         
         if git diff --staged --quiet; then
-          echo "No changes."
+          echo "No changes to commit."
         else
           git commit -m "Update Sidebar for $SERVICE_NAME $VERSION"
-          git push origin master
+          # Push with retry logic
+          if ! git push origin master; then
+            echo "Push failed, pulling latest and retrying..."
+            git pull origin master --rebase
+            git push origin master
+          fi
         fi
         
         cd ..
