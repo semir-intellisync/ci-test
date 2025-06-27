@@ -1,84 +1,107 @@
 name: 'Create Wiki Release Note'
 
-description: 'Creates a draft release note in the Wiki under a service folder'
+description: 'Creates a draft release note and updates sidebar'
 
 inputs:
   service_name:
-    description: 'The name of the service (used for folder name)'
     required: true
+    description: "Name of the microservice"
   version:
-    description: 'The version number'
     required: true
+    description: "Version number"
   token:
-    description: 'GITHUB_TOKEN'
     required: true
+    description: "GitHub Token"
   actor:
-    description: 'The GitHub user'
     required: true
+    description: "User triggering the build"
 
 runs:
   using: "composite"
   steps:
-    - name: Create Wiki Page
+    - name: Create Wiki Page & Rebuild Sidebar
       shell: bash
       env:
-        # Construct the Wiki URL securely
         WIKI_REPO: https://${{ inputs.actor }}:${{ inputs.token }}@github.com/${{ github.repository }}.wiki.git
         VERSION: ${{ inputs.version }}
         SERVICE_NAME: ${{ inputs.service_name }}
         USER: ${{ inputs.actor }}
       run: |
-        echo "🔹 Cloning Wiki Repo..."
-        
-        # Use a random temp folder to prevent collisions
+        # --- 1. CLONE WIKI ---
         TEMP_DIR="tmp_wiki_${RANDOM}"
-        
-        # Try to clone. Fail if Wiki doesn't exist.
         if ! git clone $WIKI_REPO $TEMP_DIR; then
-           echo "::error::❌ Wiki Repo not found. Please create the first page manually in GitHub UI."
+           echo "::error::❌ Wiki Repo not found."
            exit 1
         fi
-        
         cd $TEMP_DIR
         
-        # 1. Create Service Folder
+        # --- 2. CREATE SERVICE FOLDER & NOTE ---
         mkdir -p "$SERVICE_NAME"
-        
-        # 2. Define File Path
         FILENAME="$SERVICE_NAME/${VERSION}.md"
         
-        if [ -f "$FILENAME" ]; then
-          echo "⚠️ Page $FILENAME already exists. Skipping."
-          exit 0
-        fi
-
-        echo "🔹 Creating Release Note..."
-
-        cat > "$FILENAME" << EOF
+        if [ ! -f "$FILENAME" ]; then
+          cat > "$FILENAME" << EOF
         # $SERVICE_NAME: $VERSION
-        
-        **Status:** 🚧 DRAFT (Waiting for Release)
-        **Owner:** @$USER
-        **Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        **Owner:** @$USER | **Date:** $(date -u +"%Y-%m-%d")
         
         ## 📝 Changes
-        - (Add your notes here)
+        - (Add release notes)
         
         ## 📦 Artifacts
         - Package: \`@semir-intellisync/$SERVICE_NAME@${VERSION}\`
         EOF
+        fi
+
+        # --- 3. 🌳 SIDEBAR GENERATOR (The Magic Part) 🌳 ---
+        echo "🔹 Rebuilding Tree Sidebar..."
         
-        # 3. Commit and Push
+        # Start Sidebar
+        echo "## 🧭 Navigation" > _Sidebar.md
+        echo "📂 [[Home]]" >> _Sidebar.md
+        echo "" >> _Sidebar.md
+        
+        # Loop through every folder (Microservices)
+        for d in */ ; do
+            service_dir=${d%/} # remove trailing slash
+            
+            # Skip hidden folders
+            if [[ "$service_dir" == "." || "$service_dir" == ".." || "$service_dir" == ".git" ]]; then continue; fi
+            
+            # Print Service Name (Bold)
+            echo "**$service_dir**" >> _Sidebar.md
+            
+            # Find all .md files in this folder, sort reverse (newest top)
+            # We use 'ls -r' for simple reverse sort.
+            files=$(ls -r "$service_dir"/*.md 2>/dev/null)
+            
+            if [ -z "$files" ]; then continue; fi
+            
+            # Loop through versions to create the tree structure
+            for f in $files; do
+                # Get filename (1.0.0)
+                version_name=$(basename "$f" .md)
+                
+                # WRITE THE TREE LINE: |__ 1.0.0
+                # We use specific unicode characters for the tree look
+                echo "&nbsp;&nbsp;&nbsp;├── [$version_name]($f)" >> _Sidebar.md
+            done
+            
+            # Add a tiny spacer after each service
+            echo "" >> _Sidebar.md
+        done
+        
+        # --- 4. PUSH CHANGES ---
         git config user.name "GitHub Actions Bot"
         git config user.email "actions@github.com"
+        git add .
         
-        git add "$FILENAME"
-        git commit -m "Draft Notes: $SERVICE_NAME $VERSION"
-        git push origin master
+        if git diff --staged --quiet; then
+          echo "No changes."
+        else
+          git commit -m "Update Sidebar for $SERVICE_NAME $VERSION"
+          git push origin master
+        fi
         
-        echo "✅ Wiki Page Created: $FILENAME"
-        
-        # Cleanup
         cd ..
         rm -rf $TEMP_DIR
 
