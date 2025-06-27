@@ -73,7 +73,8 @@ runs:
         } > _Sidebar.md
         
         # Loop through every folder (Microservices) - sorted alphabetically
-        services=($(find . -maxdepth 1 -type d ! -name '.' ! -name '..' ! -name '.git' -exec basename {} \; | sort))
+        # Skip .git, Releases folder, and hidden folders
+        services=($(find . -maxdepth 1 -type d ! -name '.' ! -name '..' ! -name '.git' ! -name 'Releases' ! -name 'releases' -exec basename {} \; | sort))
         
         for service_dir in "${services[@]}"; do
             # Find all .md files in this folder, sort reverse (newest top)
@@ -92,29 +93,19 @@ runs:
             echo "</summary>" >> _Sidebar.md
             echo "" >> _Sidebar.md
             
-            # Loop through versions to create the beautiful tree structure
-            file_count=0
+            # Loop through versions - clean nested menu items
             for f in "${files[@]}"; do
-                file_count=$((file_count + 1))
                 version_name=$(basename "$f" .md)
-                
-                # Determine if this is the last item
-                if [ $file_count -eq ${#files[@]} ]; then
-                    # Last item - use └──
-                    tree_char="└──"
-                else
-                    # Not last - use ├──
-                    tree_char="├──"
-                fi
                 
                 # Format version nicely (truncate long versions)
                 display_version="$version_name"
-                if [ ${#version_name} -gt 35 ]; then
-                    display_version="${version_name:0:32}..."
+                if [ ${#version_name} -gt 40 ]; then
+                    display_version="${version_name:0:37}..."
                 fi
                 
-                # Create beautiful tree line with link (using proper indentation)
-                echo "&nbsp;&nbsp;&nbsp;&nbsp;<span style=\"color: #6a737d;\">$tree_char</span> 📌 [[$f|$display_version]]" >> _Sidebar.md
+                # Create clean nested menu item with proper Wiki link
+                # Wiki link format: [[service-name/version|display text]]
+                echo "&nbsp;&nbsp;&nbsp;&nbsp;📌 [[$f|$display_version]]" >> _Sidebar.md
             done
             
             echo "" >> _Sidebar.md
