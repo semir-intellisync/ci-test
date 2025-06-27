@@ -114,9 +114,9 @@ jobs:
         run: |
           VERSION="${{ needs.build.outputs.version }}"
           SERVICE_NAME="assetstack"
-          echo "🔍 Check the Wiki Page here:"
+          echo "Check the Wiki Page here:"
           echo "https://github.com/${{ github.repository }}/wiki/${SERVICE_NAME}/${VERSION}"
-          echo "📝 Please edit the Wiki page before approving."
+          echo "Please edit the Wiki page before approving."
 
       - name: Update package version
         working-directory: packages/assetstack
@@ -132,6 +132,6 @@ jobs:
       - name: Publish Release
         run: |
           SERVICE_NAME="assetstack"
-          echo "✅ Package published!"
+          echo "Package published successfully"
           echo "Wiki Page: https://github.com/${{ github.repository }}/wiki/${SERVICE_NAME}/${{ needs.build.outputs.version }}"
 
