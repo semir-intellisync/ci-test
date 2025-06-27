@@ -52,43 +52,82 @@ runs:
         EOF
         fi
 
-        # --- 3. 🌳 SIDEBAR GENERATOR (The Magic Part) 🌳 ---
-        echo "🔹 Rebuilding Tree Sidebar..."
+        # --- 3. 🌳 BEAUTIFUL COLLAPSIBLE SIDEBAR GENERATOR 🌳 ---
+        echo "🔹 Rebuilding Beautiful Collapsible Sidebar..."
         
-        # Start Sidebar
-        echo "## 🧭 Navigation" > _Sidebar.md
-        echo "📂 [[Home]]" >> _Sidebar.md
-        echo "" >> _Sidebar.md
+        # Start Sidebar with beautiful header
+        cat > _Sidebar.md << 'SIDEBAR_HEADER'
+## 🧭 Navigation
+
+📂 [[Home|Home]]
+
+---
+
+### 📦 Release Notes
+
+<details>
+<summary>
+  <strong>🚀 All Services</strong>
+</summary>
+
+SIDEBAR_HEADER
         
-        # Loop through every folder (Microservices)
-        for d in */ ; do
-            service_dir=${d%/} # remove trailing slash
-            
-            # Skip hidden folders
-            if [[ "$service_dir" == "." || "$service_dir" == ".." || "$service_dir" == ".git" ]]; then continue; fi
-            
-            # Print Service Name (Bold)
-            echo "**$service_dir**" >> _Sidebar.md
-            
+        # Loop through every folder (Microservices) - sorted alphabetically
+        services=($(find . -maxdepth 1 -type d ! -name '.' ! -name '..' ! -name '.git' -exec basename {} \; | sort))
+        
+        for service_dir in "${services[@]}"; do
             # Find all .md files in this folder, sort reverse (newest top)
-            # We use 'ls -r' for simple reverse sort.
-            files=$(ls -r "$service_dir"/*.md 2>/dev/null)
+            files=($(ls -r "$service_dir"/*.md 2>/dev/null))
             
-            if [ -z "$files" ]; then continue; fi
+            if [ ${#files[@]} -eq 0 ]; then continue; fi
             
-            # Loop through versions to create the tree structure
-            for f in $files; do
-                # Get filename (1.0.0)
+            # Count versions for display
+            version_count=${#files[@]}
+            
+            # Create collapsible section for each service
+            echo "" >> _Sidebar.md
+            echo "<details>" >> _Sidebar.md
+            echo "<summary>" >> _Sidebar.md
+            echo "  📁 **$service_dir** <small>($version_count versions)</small>" >> _Sidebar.md
+            echo "</summary>" >> _Sidebar.md
+            echo "" >> _Sidebar.md
+            
+            # Loop through versions to create the beautiful tree structure
+            file_count=0
+            for f in "${files[@]}"; do
+                file_count=$((file_count + 1))
                 version_name=$(basename "$f" .md)
                 
-                # WRITE THE TREE LINE: |__ 1.0.0
-                # We use specific unicode characters for the tree look
-                echo "&nbsp;&nbsp;&nbsp;├── [$version_name]($f)" >> _Sidebar.md
+                # Determine if this is the last item
+                if [ $file_count -eq ${#files[@]} ]; then
+                    # Last item - use └──
+                    tree_char="└──"
+                else
+                    # Not last - use ├──
+                    tree_char="├──"
+                fi
+                
+                # Format version nicely (truncate long versions)
+                display_version="$version_name"
+                if [ ${#version_name} -gt 35 ]; then
+                    display_version="${version_name:0:32}..."
+                fi
+                
+                # Create beautiful tree line with link (using proper indentation)
+                echo "&nbsp;&nbsp;&nbsp;&nbsp;<span style=\"color: #6a737d;\">$tree_char</span> 📌 [[$f|$display_version]]" >> _Sidebar.md
             done
             
-            # Add a tiny spacer after each service
             echo "" >> _Sidebar.md
+            echo "</details>" >> _Sidebar.md
         done
+        
+        # Close the main details section
+        echo "" >> _Sidebar.md
+        echo "</details>" >> _Sidebar.md
+        echo "" >> _Sidebar.md
+        echo "---" >> _Sidebar.md
+        echo "" >> _Sidebar.md
+        echo "<small>✨ Auto-generated sidebar</small>" >> _Sidebar.md
         
         # --- 4. PUSH CHANGES ---
         git config user.name "GitHub Actions Bot"
