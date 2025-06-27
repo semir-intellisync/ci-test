@@ -52,73 +52,55 @@ runs:
         EOF
         fi
 
-        # --- 3. 🌳 BEAUTIFUL COLLAPSIBLE SIDEBAR GENERATOR 🌳 ---
-        echo "🔹 Rebuilding Beautiful Collapsible Sidebar..."
+        # --- 3. 🌳 SIDEBAR GENERATOR (FIXED) 🌳 ---
+        echo "🔹 Rebuilding Sidebar..."
         
-        # Start Sidebar with beautiful header
+        # Start Sidebar
         {
           echo "## 🧭 Navigation"
           echo ""
-          echo "📂 [[Home|Home]]"
-          echo ""
-          echo "---"
+          echo "📂 [[Home]]"
           echo ""
           echo "### 📦 Release Notes"
-          echo ""
-          echo "<details>"
-          echo "<summary>"
-          echo "  <strong>🚀 All Services</strong>"
-          echo "</summary>"
-          echo ""
         } > _Sidebar.md
         
-        # Loop through every folder (Microservices) - sorted alphabetically
-        # Skip .git, Releases folder, and hidden folders
+        # Loop through every folder (Microservices)
         services=($(find . -maxdepth 1 -type d ! -name '.' ! -name '..' ! -name '.git' ! -name 'Releases' ! -name 'releases' -exec basename {} \; | sort))
         
         for service_dir in "${services[@]}"; do
-            # Find all .md files in this folder, sort reverse (newest top)
+            # Find all .md files, sort reverse (newest top)
             files=($(ls -r "$service_dir"/*.md 2>/dev/null))
             
             if [ ${#files[@]} -eq 0 ]; then continue; fi
             
-            # Count versions for display
             version_count=${#files[@]}
             
-            # Create collapsible section for each service
+            # START COLLAPSIBLE SECTION
             echo "" >> _Sidebar.md
             echo "<details>" >> _Sidebar.md
-            echo "<summary>" >> _Sidebar.md
-            echo "  📁 **$service_dir** <small>($version_count versions)</small>" >> _Sidebar.md
-            echo "</summary>" >> _Sidebar.md
-            echo "" >> _Sidebar.md
+            echo "<summary><b>$service_dir</b> ($version_count)</summary>" >> _Sidebar.md
             
-            # Loop through versions - clean nested menu items
+            # START HTML LIST (This forces the vertical layout)
+            echo "<ul>" >> _Sidebar.md
+            
             for f in "${files[@]}"; do
                 version_name=$(basename "$f" .md)
                 
-                # Format version nicely (truncate long versions)
+                # Truncate very long version names for the sidebar display
                 display_version="$version_name"
-                if [ ${#version_name} -gt 40 ]; then
-                    display_version="${version_name:0:37}..."
+                if [ ${#version_name} -gt 25 ]; then
+                    display_version="${version_name:0:22}..."
                 fi
                 
-                # Create clean nested menu item with proper Wiki link
-                # Wiki link format: [[service-name/version|display text]]
-                echo "&nbsp;&nbsp;&nbsp;&nbsp;📌 [[$f|$display_version]]" >> _Sidebar.md
+                # HTML LIST ITEM with Wiki Link
+                # We use the full path $f for the link, but short name for display
+                echo "<li><a href='$f'>$display_version</a></li>" >> _Sidebar.md
             done
             
-            echo "" >> _Sidebar.md
+            # END HTML LIST & SECTION
+            echo "</ul>" >> _Sidebar.md
             echo "</details>" >> _Sidebar.md
         done
-        
-        # Close the main details section
-        echo "" >> _Sidebar.md
-        echo "</details>" >> _Sidebar.md
-        echo "" >> _Sidebar.md
-        echo "---" >> _Sidebar.md
-        echo "" >> _Sidebar.md
-        echo "<small>✨ Auto-generated sidebar</small>" >> _Sidebar.md
         
         # --- 4. PUSH CHANGES ---
         git config user.name "GitHub Actions Bot"
