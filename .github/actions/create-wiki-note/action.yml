@@ -56,21 +56,21 @@ runs:
         echo "🔹 Rebuilding Beautiful Collapsible Sidebar..."
         
         # Start Sidebar with beautiful header
-        cat > _Sidebar.md << 'SIDEBAR_HEADER'
-## 🧭 Navigation
-
-📂 [[Home|Home]]
-
----
-
-### 📦 Release Notes
-
-<details>
-<summary>
-  <strong>🚀 All Services</strong>
-</summary>
-
-SIDEBAR_HEADER
+        {
+          echo "## 🧭 Navigation"
+          echo ""
+          echo "📂 [[Home|Home]]"
+          echo ""
+          echo "---"
+          echo ""
+          echo "### 📦 Release Notes"
+          echo ""
+          echo "<details>"
+          echo "<summary>"
+          echo "  <strong>🚀 All Services</strong>"
+          echo "</summary>"
+          echo ""
+        } > _Sidebar.md
         
         # Loop through every folder (Microservices) - sorted alphabetically
         services=($(find . -maxdepth 1 -type d ! -name '.' ! -name '..' ! -name '.git' -exec basename {} \; | sort))
